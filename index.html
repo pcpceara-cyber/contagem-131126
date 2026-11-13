@@ -175,7 +175,7 @@ body.sem-login header,body.sem-login main{visibility:hidden}
    ===================================================================== */
 // Dentro do Apps Script a tela fala com o servidor por google.script.run (não precisa de endereço).
 // API_PADRAO só é usado se esta página for aberta fora do Apps Script.
-const API_PADRAO = "";
+const API_PADRAO = "https://script.google.com/macros/s/AKfycbxKxMBkPJp22NQk0Xj0Q85OA28XsAyUvUTG_67dKFqPtWEiUHarI5vJvUYak4UTLUNq/exec";
 const LS = {
   get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
   set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} },
@@ -422,7 +422,12 @@ function bip(ok){
 const camWrap = document.createElement('div'); camWrap.className = 'mar-leitor';
 const leitor = new Leitor(camWrap);
 const camBotao = '<button type="button" class="mar-cam" data-a="camera"><span class="mira"></span><span class="cam-txt">Toque para abrir a câmera<br><small>Leia a etiqueta e digite quanto contou</small></span></button>';
-const fotoBotao = '<button type="button" class="btn grande" data-a="foto" style="margin-top:8px">📷 Tirar foto da etiqueta</button>';
+// Dentro do Apps Script o Google bloqueia a câmera ao vivo (a página fica numa moldura sem permissão de câmera):
+// nesse caso o app usa só a foto da etiqueta, que abre a câmera normal do celular.
+const NO_APPS_SCRIPT = !!(window.google && google.script && google.script.run);
+const fotoBotao = NO_APPS_SCRIPT
+  ? '<button type="button" class="mar-cam" data-a="foto" style="height:120px"><span class="mira"></span><span class="cam-txt">📷 Tirar foto da etiqueta<br><small>A câmera abre, tire a foto e o app lê o código</small></span></button>'
+  : '<button type="button" class="btn grande" data-a="foto" style="margin-top:8px">📷 Tirar foto da etiqueta</button>';
 /* Alternativa à câmera ao vivo (que o Google pode bloquear dentro do Apps Script): tira uma foto e lê o código dela. */
 const inpFoto = document.createElement('input');
 inpFoto.type = 'file'; inpFoto.accept = 'image/*'; inpFoto.setAttribute('capture', 'environment'); inpFoto.hidden = true;
@@ -446,6 +451,7 @@ inpFoto.onchange = async () => {
 function montaCamera(){
   const slot = $('#camSlot');
   if(!slot){ if(leitor.ativo) leitor.parar(); return; }
+  if(NO_APPS_SCRIPT){ slot.innerHTML = fotoBotao; return; }
   slot.appendChild(camWrap);
   slot.insertAdjacentHTML('beforeend', fotoBotao);
   if(!leitor.ativo) camWrap.innerHTML = camBotao;
@@ -572,10 +578,12 @@ function mostraResultado(r, p){
     ${t.n > 1 ? `<small style="text-align:center">${t.n} lançamentos somados (${por})</small>` : ''}
     <div class="res-dif ${cls}">${txt}</div>
     ${cls === 'falta' || cls === 'sobra' ? `<div class="res-dica">Antes de seguir, <b>confira de novo</b>. Se achou mais deste produto em outro lugar, conte e lance de novo: os lançamentos <b>somam</b>. Se digitou errado, toque em <b>Estornar</b> e lance de novo.</div>` : ''}
-    <div class="lin-acoes"><button type="button" class="btn" id="rEst">Estornar</button><button type="button" class="btn prim" id="rOk" style="min-height:56px;font-size:18px">Próximo produto</button></div>`);
+    ${leitor.ativo ? '' : '<button type="button" class="btn prim grande" id="rFoto">📷 Próxima etiqueta</button>'}
+    <div class="lin-acoes"><button type="button" class="btn" id="rEst">Estornar</button><button type="button" class="btn ${leitor.ativo ? 'prim' : ''}" id="rOk" style="min-height:56px;font-size:17px">${leitor.ativo ? 'Próximo produto' : 'Voltar à lista'}</button></div>`);
   $('#rOk').onclick = () => { fechar(); renderContar(true); leitor.liberar(); };
+  if($('#rFoto')) $('#rFoto').onclick = () => { fechar(); renderContar(true); inpFoto.click(); };
   $('#rEst').onclick = () => pedeEstorno(S.meus.find(x => x.id === r.lanc.id));
-  setTimeout(() => { try{ $('#rOk').focus(); }catch(_){} }, 60);
+  setTimeout(() => { try{ ($('#rFoto') || $('#rOk')).focus(); }catch(_){} }, 60);
 }
 
 /* ---------- estorno (ADMIN direto; contador precisa do PIN de um ADMIN) ---------- */
